@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow">
+<title>Connessione Spotify · Ambient TV</title>
+<style>
+body{background:#091416;color:#eef6e9;font:18px/1.6 sans-serif;max-width:850px;margin:8vh auto;padding:24px}h1{font-weight:400;line-height:1.2}p{color:#c2d2cc}textarea{width:100%;height:160px;background:#162b2d;color:inherit;font:15px monospace;padding:12px;box-sizing:border-box;border:1px solid #64766c;border-radius:8px}button,a{display:inline-block;background:#d6f9ab;color:#102019;border:0;padding:14px 22px;font:inherit;border-radius:30px;margin-top:18px;text-decoration:none}[hidden]{display:none!important}small{display:block;margin-top:28px;color:#9bb0a7}
+</style>
+</head>
+<body>
+<h1 id="title">Pagina di ritorno pronta.</h1>
+<p id="message">Avvia “Connetti Spotify” nell’app sul televisore o nel simulatore. Questa pagina si aprirà dopo l’autorizzazione.</p>
+<div id="transfer" hidden><label for="result">Indirizzo da riportare nell’app TV</label><textarea id="result" readonly spellcheck="false"></textarea><button id="copy">Copia indirizzo</button><p id="copy-status" role="status"></p></div>
+<a id="return" href="index.html" hidden>Torna all’app</a>
+<small>Progetto personale indipendente. Non condividere l’indirizzo di ritorno. Nessun token o dato viene inviato da questa pagina a servizi di pairing.</small>
+<script>
+(function () {
+  'use strict';
+  function el(id) { return document.getElementById(id); }
+  var returned = location.href, params = {};
+  history.replaceState(null, '', location.pathname);
+  try {
+    var query = returned.split('?')[1] || '';
+    query.split('#')[0].split('&').forEach(function (part) {
+      var index = part.indexOf('=');
+      if (index >= 0) params[decodeURIComponent(part.slice(0, index))] = decodeURIComponent(part.slice(index + 1).replace(/\+/g, ' '));
+    });
+  } catch (_) { el('message').textContent = 'Indirizzo non valido. Avvia una nuova connessione dall’app.'; return; }
+  if (params.error) { el('title').textContent = 'Autorizzazione non completata.'; el('message').textContent = 'Torna all’app sul TV o nel simulatore e riprova.'; return; }
+  if (!params.code || !params.state) return;
+  el('title').textContent = 'Torna all’app sul TV.';
+  el('message').textContent = 'Copia l’indirizzo qui sotto, incollalo nel campo di ritorno dell’app e premi “Completa connessione”. Il codice è temporaneo: completa subito il passaggio.';
+  el('transfer').hidden = false; el('result').value = returned;
+  el('copy').onclick = function () {
+    function fallback() {
+      el('result').focus(); el('result').select(); var copied = false;
+      try { copied = document.execCommand('copy'); } catch (_) {}
+      el('copy-status').textContent = copied ? 'Indirizzo copiato. Torna all’app.' : 'Copia manualmente il testo selezionato nel campo qui sopra.';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(returned).then(function () { el('copy-status').textContent = 'Indirizzo copiato. Torna all’app.'; }, fallback);
+    else fallback();
+  };
+  // Same-origin browser requests can complete automatically. TV requests cannot.
+  var pending = null;
+  try { pending = JSON.parse(localStorage.getItem('sv.pkce')); } catch (_) {}
+  if (!pending || pending.state !== params.state || Date.now() - pending.created > 600000) return;
+  var scripts = ['config.js', 'config.local.js', 'src/utils/core.js', 'src/spotify/spotifyAuth.js'];
+  function failed() { el('message').textContent = 'Ritorno automatico non riuscito. Se hai iniziato dal TV, usa l’indirizzo qui sotto; altrimenti torna all’app e riprova.'; el('return').hidden = false; }
+  function load() {
+    if (!scripts.length) {
+      if (!window.SV || !window.SV.auth) { failed(); return; }
+      window.SV.auth.complete(returned).then(function () { location.replace('index.html'); }, failed); return;
+    }
+    var script = document.createElement('script'); script.src = scripts.shift(); script.onload = load;
+    script.onerror = script.src.indexOf('config.local.js') >= 0 ? load : failed;
+    document.head.appendChild(script);
+  }
+  load();
+}());
+</script>
+</body></html>
